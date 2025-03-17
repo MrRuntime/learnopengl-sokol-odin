@@ -30,10 +30,13 @@ VERT :: sg.Shader_Function {
 	layout(location=1) in vec2 a_tex_coord;
 
 	out vec2 tex_coord;
-	uniform mat4 transform;
+
+	uniform mat4 model;
+	uniform mat4 view;
+	uniform mat4 projection;
 
 	void main() {
-		gl_Position = transform * vec4(a_pos, 0.0, 1.0);
+		gl_Position = projection * view * model * vec4(a_pos, 0.0, 1.0);
 		tex_coord = a_tex_coord;
 	}
 	`,
@@ -127,17 +130,23 @@ init_cb :: proc "c" () {
 	shader_desc.image_sampler_pairs[1].image_slot = 1
 	shader_desc.image_sampler_pairs[1].sampler_slot = 1
 
-	// desc.uniform_blocks[0].stage = .VERTEX
-	// desc.uniform_blocks[0].layout = .STD140
-	// desc.uniform_blocks[0].size = 64
-	// desc.uniform_blocks[0].glsl_uniforms[0].type = .FLOAT4
-	// desc.uniform_blocks[0].glsl_uniforms[0].array_count = 4
-	// desc.uniform_blocks[0].glsl_uniforms[0].glsl_name = "vs_params"
 	shader_desc.uniform_blocks[0].stage = .VERTEX
 	shader_desc.uniform_blocks[0].layout = .STD140
 	shader_desc.uniform_blocks[0].size = 64
 	shader_desc.uniform_blocks[0].glsl_uniforms[0].type = .MAT4
-	shader_desc.uniform_blocks[0].glsl_uniforms[0].glsl_name = "transform"
+	shader_desc.uniform_blocks[0].glsl_uniforms[0].glsl_name = "model"
+
+	shader_desc.uniform_blocks[1].stage = .VERTEX
+	shader_desc.uniform_blocks[1].layout = .STD140
+	shader_desc.uniform_blocks[1].size = 64
+	shader_desc.uniform_blocks[1].glsl_uniforms[0].type = .MAT4
+	shader_desc.uniform_blocks[1].glsl_uniforms[0].glsl_name = "view"
+
+	shader_desc.uniform_blocks[2].stage = .VERTEX
+	shader_desc.uniform_blocks[2].layout = .STD140
+	shader_desc.uniform_blocks[2].size = 64
+	shader_desc.uniform_blocks[2].glsl_uniforms[0].type = .MAT4
+	shader_desc.uniform_blocks[2].glsl_uniforms[0].glsl_name = "projection"
 
 	state.shader = sg.make_shader(shader_desc)
 
@@ -183,20 +192,21 @@ event_cb :: proc "c" (ev: ^sapp.Event) {
 frame_cb :: proc "c" () {
 	context = ctx
 
-	trans: glm.mat4 = 1
-	translate := glm.mat4Translate(glm.vec3{0.5, -0.5, 0.0})
-	angle := f32(stm.sec(stm.now())) * 50
-	rotate := glm.mat4Rotate(glm.vec3{0, 0, 1}, glm.radians_f32(angle))
-	trans = translate * rotate
-
-	// proj := glm.mat4Perspective(45, sapp.widthf() / sapp.heightf(), 0.0001, 1000)
-	// rotate := glm.mat4Rotate(glm.vec3{0, 0, 1}, glm.radians_f32(90))
-	// proj = proj * rotate
+	model := glm.mat4Rotate(glm.vec3{1, 0, 0}, glm.radians_f32(-55))
+	view := glm.mat4Translate(glm.vec3{0, 0, -3})
+	projection := glm.mat4Perspective(
+		glm.radians_f32(45),
+		sapp.widthf() / sapp.heightf(),
+		0.1,
+		100,
+	)
 
 	sg.begin_pass({action = state.pass_action, swapchain = shelpers.glue_swapchain()})
 	sg.apply_pipeline(state.pip)
 	sg.apply_bindings(state.bind)
-	sg.apply_uniforms(0, sg_range(&trans))
+	sg.apply_uniforms(0, sg_range(&model))
+	sg.apply_uniforms(1, sg_range(&view))
+	sg.apply_uniforms(2, sg_range(&projection))
 	sg.draw(0, 6, 1)
 	sg.end_pass()
 	sg.commit()
